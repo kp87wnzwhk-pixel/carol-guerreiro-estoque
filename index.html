@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#e91e8c" />
+  <meta name="description" content="Carol Guerreiro Importado — Estoque de caixas do armazém" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Carol Estoque" />
+  <title>Carol Guerreiro Importado — Estoque</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="icons/logo.svg" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-wrap" aria-hidden="true">
+        <img src="icons/logo.svg" alt="" class="logo" width="72" height="72" />
+      </div>
+      <h1 class="brand">Carol Guerreiro Importado</h1>
+      <p class="slogan">No Brasil é luxo, com a Carol é barato.</p>
+    </header>
+
+    <!-- Delivery request block (fixed home) -->
+    <section class="card delivery-block" id="delivery-block" aria-labelledby="delivery-title">
+      <h2 id="delivery-title" class="card-title">Solicitação de entrega</h2>
+      <div class="form-row">
+        <label for="delivery-name">Nome <span class="optional">(opcional)</span></label>
+        <input type="text" id="delivery-name" autocomplete="name" placeholder="Nome do cliente" />
+      </div>
+      <div class="form-row">
+        <label for="delivery-phone">Telefone <span class="required">*</span></label>
+        <input type="tel" id="delivery-phone" inputmode="tel" autocomplete="tel" placeholder="(21) 99999-0000" />
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-danger btn-lg" id="btn-delivery-request">
+          Este cliente solicitou a entrega
+        </button>
+        <button type="button" class="btn btn-secondary btn-lg" id="btn-delivery-weighed">
+          Pesagem feita
+        </button>
+      </div>
+      <p class="hint" id="delivery-feedback" role="status" aria-live="polite"></p>
+    </section>
+
+    <!-- Search -->
+    <section class="card search-block">
+      <label for="search-input" class="card-title">Buscar caixa — nome ou telefone</label>
+      <input type="search" id="search-input" placeholder="Ex: José, (21) 9…, caixa do José" autocomplete="off" />
+      <div id="search-results" class="search-results" hidden></div>
+    </section>
+
+    <!-- Toolbar: photo + data -->
+    <section class="toolbar">
+      <button type="button" class="btn btn-primary btn-lg btn-block" id="btn-photo-register">
+        📷 Cadastrar por foto
+      </button>
+      <div class="btn-row toolbar-actions">
+        <button type="button" class="btn btn-outline" id="btn-backup">Backup JSON</button>
+        <button type="button" class="btn btn-outline" id="btn-import">Importar JSON</button>
+        <button type="button" class="btn btn-outline" id="btn-csv">Planilha CSV</button>
+        <button type="button" class="btn btn-outline" id="btn-restore">Restaurar</button>
+      </div>
+      <input type="file" id="import-file" accept="application/json,.json" hidden />
+    </section>
+
+    <!-- Corridor filters + map -->
+    <section class="map-section">
+      <div class="corridor-tabs" role="tablist" aria-label="Corredores">
+        <button type="button" class="corridor-tab active" data-corridor="all" role="tab" aria-selected="true">Todos</button>
+        <button type="button" class="corridor-tab" data-corridor="A" role="tab" aria-selected="false">A 1–8</button>
+        <button type="button" class="corridor-tab" data-corridor="B" role="tab" aria-selected="false">B 9–16</button>
+        <button type="button" class="corridor-tab" data-corridor="C" role="tab" aria-selected="false">C 17–24</button>
+        <button type="button" class="corridor-tab" data-corridor="D" role="tab" aria-selected="false">D 25–32</button>
+      </div>
+      <div id="shelf-map" class="shelf-map" role="list"></div>
+    </section>
+
+    <footer class="app-footer">
+      <p>32 prateleiras × 20 slots · dados salvos neste aparelho</p>
+    </footer>
+  </div>
+
+  <!-- Views / overlays (non-blocking panels) -->
+  <div id="panel-host" class="panel-host" hidden>
+    <div class="panel" role="dialog" aria-modal="true" id="main-panel">
+      <div class="panel-header">
+        <button type="button" class="btn-icon" id="panel-back" aria-label="Voltar">←</button>
+        <h2 class="panel-title" id="panel-title">Detalhe</h2>
+        <button type="button" class="btn-icon" id="panel-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="panel-body" id="panel-body"></div>
+    </div>
+  </div>
+
+  <!-- Print label (hidden until print) -->
+  <div id="print-label" class="print-label" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
