@@ -47,6 +47,8 @@ import {
   syncPullExcludedIds,
   subscribeBoxes,
   subscribeExcluded,
+  markSyncBootTried,
+  markSyncError,
 } from './sync.js';
 
 const TOTAL_SHELVES = 32;
@@ -1207,32 +1209,39 @@ async function init() {
   renderMap();
   updateSyncBadge();
 
-  try {
-    await withTimeout(initSync(), 8000);
-  } catch (e) {
-    console.warn('initSync:', e);
-  }
-  updateSyncBadge();
-
-  try {
-    await withTimeout(pullAndMergeCloud(), 10000);
-  } catch (e) {
-    console.warn('pull cloud:', e);
-  }
-  updateSyncBadge();
-  startRealtimeSync();
-
+  // Limpa SW/cache antigo que bloqueava o Firebase
   if ('serviceWorker' in navigator) {
     try {
       const regs = await navigator.serviceWorker.getRegistrations();
-      // limpa SW antigo pesado; registra v4 leve
-      for (const r of regs) {
-        /* keep registering below */
+      await Promise.all(regs.map((r) => r.unregister()));
+      if (window.caches) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
       }
-      await navigator.serviceWorker.register('./sw.js?v=4');
     } catch (err) {
-      console.warn('SW:', err);
+      console.warn('SW cleanup:', err);
     }
+  }
+
+  try {
+    await withTimeout(initSync(), 12000);
+  } catch (e) {
+    console.warn('initSync:', e);
+    markSyncError(e && e.code === 'TIMEOUT' ? e : e || new Error('falha ao conectar'));
+  }
+  markSyncBootTried();
+  updateSyncBadge();
+
+  if (isSyncActive()) {
+    try {
+      await withTimeout(pullAndMergeCloud(), 12000);
+    } catch (e) {
+      console.warn('pull cloud:', e);
+    }
+    updateSyncBadge();
+    startRealtimeSync();
+  } else {
+    updateSyncBadge();
   }
 }
 

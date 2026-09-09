@@ -14,6 +14,7 @@ let app = null;
 let db = null;
 let ready = false;
 let initError = null;
+let bootTried = false;
 
 function configLooksFilled() {
   const c = firebaseConfig;
@@ -31,24 +32,47 @@ export function getSyncStatus() {
   if (!configLooksFilled()) {
     return { mode: 'local', message: 'Sync ligado, mas firebase-config incompleto' };
   }
-  if (initError) return { mode: 'error', message: String(initError.message || initError) };
-  if (!ready) return { mode: 'loading', message: 'Conectando nuvem…' };
-  return { mode: 'sync', message: 'Nuvem ativa — prateleiras sincronizadas' };
+  if (ready) return { mode: 'sync', message: 'Nuvem ativa — prateleiras sincronizadas' };
+  if (initError) {
+    const msg = String(initError.message || initError);
+    if (msg === 'TIMEOUT' || initError.code === 'TIMEOUT') {
+      return { mode: 'error', message: 'Nuvem lenta — dados salvos neste aparelho' };
+    }
+    return { mode: 'error', message: 'Nuvem offline — ' + msg.slice(0, 80) };
+  }
+  if (!bootTried) return { mode: 'loading', message: 'Conectando nuvem…' };
+  return { mode: 'error', message: 'Nuvem offline — dados salvos neste aparelho' };
+}
+
+export function markSyncBootTried() {
+  bootTried = true;
+}
+
+export function markSyncError(err) {
+  bootTried = true;
+  ready = false;
+  initError = err instanceof Error ? err : new Error(String(err || 'falha'));
 }
 
 export async function initSync() {
+  bootTried = true;
   if (!SYNC_ENABLED || !configLooksFilled()) {
     ready = false;
     return false;
   }
   try {
-    const { initializeApp, getApps } = await import(
+    const { initializeApp, getApp, getApps } = await import(
       'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js'
     );
     const { getFirestore } = await import(
       'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js'
     );
-    app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+    const NAME = 'carol-estoque';
+    try {
+      app = getApp(NAME);
+    } catch (_) {
+      app = initializeApp(firebaseConfig, NAME);
+    }
     db = getFirestore(app);
     ready = true;
     initError = null;

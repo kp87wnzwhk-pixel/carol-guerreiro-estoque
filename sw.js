@@ -1,5 +1,5 @@
 /* Service worker — cache leve v4 (sem vendor OCR enorme) */
-const CACHE = 'cgi-estoque-v4';
+const CACHE = 'cgi-estoque-v5';
 const ASSETS = [
   './',
   './index.html',

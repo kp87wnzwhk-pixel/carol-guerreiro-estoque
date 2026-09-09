@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="css/styles.css?v=4" />
+  <link rel="stylesheet" href="css/styles.css?v=5" />
 </head>
 <body>
   <div id="app">
@@ -101,7 +101,28 @@
   <!-- Print label (hidden until print) -->
   <div id="print-label" class="print-label" hidden></div>
 
-  <script type="module" src="js/app.js?v=4"></script>
+  <script>
+(function(){
+  var FLAG='cgi_estoque_clean_v5';
+  try {
+    if (localStorage.getItem(FLAG)==='1') return;
+    var p=Promise.resolve();
+    if (navigator.serviceWorker) {
+      p=navigator.serviceWorker.getRegistrations().then(function(regs){
+        return Promise.all(regs.map(function(r){return r.unregister();}));
+      });
+    }
+    p.then(function(){
+      if (!window.caches) return;
+      return caches.keys().then(function(keys){return Promise.all(keys.map(function(k){return caches.delete(k);}));});
+    }).catch(function(){}).then(function(){
+      try{localStorage.setItem(FLAG,'1');}catch(e){}
+      location.replace('./?v=5&clean=1&t='+Date.now());
+    });
+  } catch(e) {}
+})();
+</script>
+  <script type="module" src="js/app.js?v=5"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
