@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="css/styles.css?v=5" />
+  <link rel="stylesheet" href="css/styles.css?v=6" />
 </head>
 <body>
   <div id="app">
@@ -102,27 +102,55 @@
   <div id="print-label" class="print-label" hidden></div>
 
   <script>
-(function(){
-  var FLAG='cgi_estoque_clean_v5';
-  try {
-    if (localStorage.getItem(FLAG)==='1') return;
-    var p=Promise.resolve();
+(function () {
+  var VER = '6';
+  var FLAG = 'cgi_estoque_clean_v' + VER;
+  var params = new URLSearchParams(location.search);
+  var alreadyClean = params.get('clean') === '1' || params.get('reset');
+
+  function loadApp() {
+    var s = document.createElement('script');
+    s.type = 'module';
+    s.src = 'js/app.js?v=' + VER + '&t=' + Date.now();
+    s.onerror = function () {
+      var el = document.getElementById('sync-status');
+      if (el) {
+        el.textContent = 'Falha ao carregar o app — abra /reset.html';
+        el.className = 'sync-status sync-error';
+      }
+    };
+    document.body.appendChild(s);
+  }
+
+  function nuke() {
+    var p = Promise.resolve();
     if (navigator.serviceWorker) {
-      p=navigator.serviceWorker.getRegistrations().then(function(regs){
-        return Promise.all(regs.map(function(r){return r.unregister();}));
+      p = navigator.serviceWorker.getRegistrations().then(function (regs) {
+        return Promise.all(regs.map(function (r) { return r.unregister(); }));
       });
     }
-    p.then(function(){
+    return p.then(function () {
       if (!window.caches) return;
-      return caches.keys().then(function(keys){return Promise.all(keys.map(function(k){return caches.delete(k);}));});
-    }).catch(function(){}).then(function(){
-      try{localStorage.setItem(FLAG,'1');}catch(e){}
-      location.replace('./?v=5&clean=1&t='+Date.now());
-    });
-  } catch(e) {}
+      return caches.keys().then(function (keys) {
+        return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+      });
+    }).catch(function () {});
+  }
+
+  // Sempre tenta limpar SW; na 1ª visita da v6 recarrega com ?clean=1
+  try {
+    if (!alreadyClean && localStorage.getItem(FLAG) !== '1') {
+      nuke().then(function () {
+        try { localStorage.setItem(FLAG, '1'); } catch (e) {}
+        location.replace('./?v=' + VER + '&clean=1&t=' + Date.now());
+      });
+      return;
+    }
+  } catch (e) {}
+
+  nuke().then(loadApp);
 })();
 </script>
-  <script type="module" src="js/app.js?v=5"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

@@ -700,3 +700,6 @@ img { max-width: 100%; display: block; }
 .sync-status.sync-error { color: #b00020; }
 .sync-status.sync-loading,
 .sync-status.sync-local { color: #666; }
+
+.sync-reset-hint { margin: 4px 0 0; font-size: 0.75rem; }
+.sync-reset-hint a { color: #c2185b; text-decoration: underline; }
