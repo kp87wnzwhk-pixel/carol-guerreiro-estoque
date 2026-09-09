@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="css/styles.css?v=13" />
+  <link rel="stylesheet" href="css/styles.css?v=14" />
 </head>
 <body>
   <div id="app">
@@ -104,8 +104,8 @@
 
   <script>
 (function () {
-  var VER = '13';
-  var FLAG = 'cgi_estoque_force_13';
+  var VER = '14';
+  var FLAG = 'cgi_estoque_force_14';
   var statusEl = document.getElementById('sync-status');
 
   function setStatus(text, mode) {
@@ -147,7 +147,7 @@
     } catch (e) {}
     return Promise.all(tasks).catch(function () {});
   }
-  // One-shot force clean for v13 (drops stale OCR/review UI cache)
+  // One-shot force clean for v14 (drops stale OCR/review UI cache)
   try {
     if (localStorage.getItem(FLAG) !== '1') {
       Promise.race([

@@ -1,5 +1,5 @@
 /* Service worker — cache leve v4 (sem vendor OCR enorme) */
-const CACHE = 'cgi-estoque-v5';
+const CACHE = 'cgi-estoque-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -7,8 +7,8 @@ const ASSETS = [
   './js/app.js',
   './js/storage.js',
   './js/db.js',
-  './js/ocr.js",
-  "./js/ocr-fill.js',
+  './js/ocr.js',
+  './js/ocr-fill.js',
   './js/sync.js',
   './js/firebase-config.js',
   './js/cdn.json',

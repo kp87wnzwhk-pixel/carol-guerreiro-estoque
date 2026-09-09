@@ -1,4 +1,4 @@
-/** OCR estoque: so NOME + TELEFONE do post-it amarelo */
+/** OCR v14: post-it amarelo - nome + telefone (1 pass, sem whitelist) */
 function loadScript(src) {
   return new Promise((resolve, reject) => {
     if (document.querySelector('script[data-tess="1"]')) { resolve(); return; }
@@ -23,7 +23,7 @@ export function formatFromDigits(d) {
   return '(' + d.slice(0, 2) + ') ' + d.slice(2, 7) + '-' + d.slice(7);
 }
 
-const PACK_RE = /variety|crispy|creamy|wafer|bars?|pack|net\s*wt|chocolate|cookie|biscuit|product|ingredients|nariety|imported/i;
+const PACK_RE = /variety|crispy|creamy|wafer|bars?|pack|net\s*wt|chocolate|cookie|biscuit|product|ingredients|nariety|imported|embalagem|validade|ingredientes/i;
 
 function isPersonName(line) {
   const s = String(line || '').replace(/[|_]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -55,11 +55,26 @@ function pickName(text) {
     if (/[a-z\u00E0-\u00FF]/.test(line)) score += 8;
     if (score > bestScore) { bestScore = score; best = line.replace(/^(?:nome|cliente)\s+/i, '').trim(); }
   }
-  return bestScore >= 25 ? best : '';
+  if (bestScore >= 12 && best) return best;
+  // Soft fallback: letter-heavy non-packaging line
+  for (const line of lines) {
+    if (PACK_RE.test(line)) continue;
+    const s = line.replace(/[|_]/g, ' ').replace(/\s+/g, ' ').trim();
+    const letters = (s.match(/[A-Za-z\u00C0-\u00FF]/g) || []).length;
+    const digits = (s.match(/\d/g) || []).length;
+    if (letters >= 4 && letters <= 28 && digits < 3 && !/\(?\s*\d{2}\s*\)?\s*\d{3}/.test(s)) return s.replace(/^(?:nome|cliente)\s+/i, '').trim();
+  }
+  return best || '';
+}
+
+function softDigitFix(s) {
+  return String(s || '')
+    .replace(/[Oo]/g, '0')
+    .replace(/[Il|]/g, '1');
 }
 
 function pickPhone(text) {
-  const raw = String(text || '');
+  const raw = softDigitFix(String(text || ''));
   const candidates = [];
   const re = /(?:\+?55\s*)?(?:\(?\s*\d{2}\s*\)?\s*)?(?:9\s*)?\d{4,5}[\s.-]?\d{3,4}/g;
   for (const m of raw.match(re) || []) {
@@ -74,8 +89,15 @@ function pickPhone(text) {
     if (slice.length >= 11 && slice[2] === '9') candidates.push(slice.slice(0, 11));
     else if (slice.length >= 10) candidates.push(slice.slice(0, 10));
   }
-  const mob = candidates.find((c) => c.length === 11 && c[2] === '9');
-  return mob || candidates[0] || '';
+  const uniq = [];
+  for (const c of candidates) { if (c && !uniq.includes(c)) uniq.push(c); }
+  uniq.sort((a, b) => {
+    const am = a.length === 11 && a[2] === '9' ? 1 : 0;
+    const bm = b.length === 11 && b[2] === '9' ? 1 : 0;
+    if (bm !== am) return bm - am;
+    return b.length - a.length;
+  });
+  return uniq[0] || '';
 }
 
 async function getTesseract() {
@@ -101,7 +123,7 @@ async function getWorker(onProgress) {
       logger: (m) => {
         if (!onProgress || !m) return;
         if (m.status === 'recognizing text' && m.progress != null) {
-          onProgress('Lendo… ' + Math.round(m.progress * 100) + '%');
+          onProgress('Lendo nome e telefone… ' + Math.round(m.progress * 100) + '%');
         } else if (m.status === 'loading language traineddata') {
           onProgress('Baixando (1ª vez)…');
         }
@@ -142,7 +164,7 @@ async function cropSticky(file) {
   }
 
   let sx, sy, sw, sh;
-  if (yellow > w0 * h0 * 0.006 && maxX > minX + 25 && maxY > minY + 25) {
+  if (yellow > w0 * h0 * 0.004 && maxX > minX + 25 && maxY > minY + 25) {
     const pad = Math.round(Math.min(w0, h0) * 0.02);
     sx = Math.max(0, minX - pad);
     sy = Math.max(0, minY - pad);
@@ -169,11 +191,10 @@ async function cropSticky(file) {
     const r = p[i], g = p[i + 1], b = p[i + 2];
     let yv = 0.299 * r + 0.587 * g + 0.114 * b;
     if (b > r + 10 && b > g) yv *= 0.5;
-    yv = (yv - 128) * 1.75 + 128;
+    yv = (yv - 128) * 1.35 + 128;
     if (yv < 0) yv = 0;
     if (yv > 255) yv = 255;
-    const v = yv < 145 ? 0 : 255;
-    p[i] = p[i + 1] = p[i + 2] = v;
+    p[i] = p[i + 1] = p[i + 2] = yv;
   }
   ctx1.putImageData(img2, 0, 0);
   return await new Promise((resolve) => c1.toBlob((b) => resolve(b || file), 'image/png'));
@@ -196,43 +217,55 @@ export function parseLabelText(text) {
 
 export async function recognizeLabel(image, onProgress) {
   if (onProgress) onProgress('Recortando post-it…');
-  const crop = await cropSticky(image);
+  let crop;
+  try {
+    crop = await cropSticky(image);
+  } catch (err) {
+    console.warn('cropSticky failed, using original', err);
+    crop = image;
+  }
   const worker = await getWorker(onProgress);
+  if (onProgress) onProgress('Lendo nome e telefone…');
 
-  if (onProgress) onProgress('Lendo telefone…');
+  // One primary pass - NO character whitelist (hurts handwriting)
   await worker.setParameters({
     tessedit_pageseg_mode: '6',
-    tessedit_char_whitelist: '0123456789()- ',
+    preserve_interword_spaces: '1',
+    tessedit_char_whitelist: '',
   });
-  const phoneRes = await worker.recognize(crop);
-  const phoneText = (phoneRes && phoneRes.data && phoneRes.data.text) || '';
 
-  if (onProgress) onProgress('Lendo nome…');
-  await worker.setParameters({
-    tessedit_pageseg_mode: '6',
-    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÁÀÂÃÉÊÍÓÔÕÚÇáàâãéêíóôõúç '-",
-  });
-  const nameRes = await worker.recognize(crop);
-  const nameText = (nameRes && nameRes.data && nameRes.data.text) || '';
+  let rawText = '';
+  try {
+    const res = await worker.recognize(crop);
+    rawText = (res && res.data && res.data.text) || '';
+  } catch (err) {
+    console.warn('OCR PSM6 failed', err);
+  }
 
-  await worker.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '' });
-  let raw = nameText + '\n' + phoneText;
-  let name = pickName(nameText) || pickName(raw);
-  let phoneDigits = pickPhone(phoneText) || pickPhone(raw);
+  let parsed = parseLabelText(rawText);
 
-  if (!name || !phoneDigits) {
-    if (onProgress) onProgress('Ajustando…');
-    const full = await worker.recognize(crop);
-    raw = ((full && full.data && full.data.text) || '') + '\n' + raw;
-    if (!name) name = pickName(raw);
-    if (!phoneDigits) phoneDigits = pickPhone(raw);
+  if (!parsed.name && !parsed.phoneDigits) {
+    if (onProgress) onProgress('Tentando outro modo…');
+    try {
+      await worker.setParameters({
+        tessedit_pageseg_mode: '11',
+        preserve_interword_spaces: '1',
+        tessedit_char_whitelist: '',
+      });
+      const res2 = await worker.recognize(crop);
+      const t2 = (res2 && res2.data && res2.data.text) || '';
+      rawText = (rawText + '\n' + t2).trim();
+      parsed = parseLabelText(rawText);
+    } catch (err) {
+      console.warn('OCR PSM11 failed', err);
+    }
   }
 
   if (onProgress) onProgress('Pronto');
   return {
-    rawText: raw,
-    name: name || '',
-    phoneDigits: phoneDigits || '',
-    phoneFormatted: phoneDigits ? formatFromDigits(phoneDigits) : '',
+    rawText,
+    name: parsed.name || '',
+    phoneDigits: parsed.phoneDigits || '',
+    phoneFormatted: parsed.phoneDigits ? formatFromDigits(parsed.phoneDigits) : '',
   };
 }
