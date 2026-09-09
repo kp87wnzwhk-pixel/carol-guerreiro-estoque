@@ -2,6 +2,8 @@
 :root {
   --pink: #e91e8c;
   --pink-dark: #c2185b;
+  --pink-deep: #880e4f;
+  --pink-deepest: #4a0629;
   --pink-light: #fce4ec;
   --pink-mid: #f8bbd9;
   --magenta: #ad1457;
@@ -347,9 +349,34 @@ img { max-width: 100%; display: block; }
 }
 
 .shelf-card.occupied {
-  background: var(--pink-light);
-  border-color: var(--pink-mid);
+  background: linear-gradient(145deg, var(--pink-deep), var(--pink-deepest));
+  border-color: var(--pink-deepest);
+  color: #fff;
 }
+.shelf-card.occupied .shelf-num,
+.shelf-card.occupied .shelf-occ,
+.shelf-card.occupied .shelf-client {
+  color: #fff;
+}
+.shelf-card.occupied .letter-chip {
+  border-color: rgba(255,255,255,0.35);
+}
+.shelf-card.occupied .letter-chip.empty {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.85);
+  opacity: 1;
+}
+.shelf-card.occupied .letter-chip.empty strong { color: rgba(255,255,255,0.9); }
+.shelf-card.occupied .letter-chip.used,
+.shelf-card.occupied .letter-chip.full {
+  background: #fff;
+  border-color: #fff;
+}
+.shelf-card.occupied .letter-chip.used strong,
+.shelf-card.occupied .letter-chip.full strong {
+  color: var(--pink-deep);
+}
+
 
 .shelf-card.delivery {
   background: var(--red-bg);
@@ -488,8 +515,13 @@ img { max-width: 100%; display: block; }
 
 .slot-btn.empty { background: #fff; }
 .slot-btn.occupied {
-  background: var(--pink-light);
-  border-color: var(--pink-mid);
+  background: linear-gradient(145deg, var(--pink-deep), var(--pink-deepest));
+  border-color: var(--pink-deepest);
+  color: #fff;
+}
+.slot-btn.occupied .slot-n,
+.slot-btn.occupied .slot-name {
+  color: #fff;
 }
 .slot-btn.delivery {
   background: var(--red-bg);
@@ -753,8 +785,22 @@ img { max-width: 100%; display: block; }
   color: var(--magenta);
 }
 .letter-chip.empty { opacity: 0.75; background: #faf7f9; }
-.letter-chip.used { background: var(--pink-light); border-color: var(--pink-mid); }
-.letter-chip.full { background: #f8bbd9; border-color: var(--pink); }
+.letter-chip.used {
+  background: linear-gradient(145deg, #ad1457, var(--pink-deep));
+  border-color: var(--pink-deepest);
+  color: #fff;
+}
+.letter-chip.used strong { color: #fff; }
+.letter-chip.used small { color: rgba(255,255,255,0.9); }
+.letter-chip.full {
+  background: linear-gradient(145deg, var(--pink-deep), var(--pink-deepest));
+  border-color: #2d0018;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.15);
+}
+.letter-chip.full strong { color: #fff; }
+.letter-chip.full small { color: rgba(255,255,255,0.92); }
+
 
 .shelf-letter-panels {
   display: flex;
