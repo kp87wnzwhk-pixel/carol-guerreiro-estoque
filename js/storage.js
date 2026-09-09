@@ -171,9 +171,9 @@ export function boxAt(boxes, shelf, slot) {
   return boxes.find((b) => b.shelf === shelf && b.slot === slot) || null;
 }
 
-export function firstFreeSlot(boxes, shelf) {
+export function firstFreeSlot(boxes, shelf, maxSlots = 25) {
   const used = new Set(boxes.filter((b) => b.shelf === shelf).map((b) => b.slot));
-  for (let s = 1; s <= 20; s++) {
+  for (let s = 1; s <= maxSlots; s++) {
     if (!used.has(s)) return s;
   }
   return null;

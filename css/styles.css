@@ -318,13 +318,13 @@ img { max-width: 100%; display: block; }
 }
 
 .shelf-map {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 8px;
 }
 
 @media (min-width: 420px) {
-  .shelf-map { grid-template-columns: repeat(4, 1fr); }
 }
 
 .shelf-card {
@@ -703,3 +703,98 @@ img { max-width: 100%; display: block; }
 
 .sync-reset-hint { margin: 4px 0 0; font-size: 0.75rem; }
 .sync-reset-hint a { color: #c2185b; text-decoration: underline; }
+
+
+/* Prateleiras bem separadas + letras A–E */
+.shelf-card-separated {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  min-height: 112px;
+  padding: 14px 14px 12px;
+  margin: 0;
+  border-radius: 18px;
+  border: 2px solid var(--border);
+  box-shadow: 0 4px 16px rgba(173, 20, 87, 0.1);
+  text-align: left;
+}
+.shelf-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.shelf-card-separated .shelf-num {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--magenta);
+}
+.shelf-letters {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.letter-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 2px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font-size: 0.72rem;
+  line-height: 1.15;
+}
+.letter-chip strong {
+  font-size: 1rem;
+  color: var(--magenta);
+}
+.letter-chip.empty { opacity: 0.75; background: #faf7f9; }
+.letter-chip.used { background: var(--pink-light); border-color: var(--pink-mid); }
+.letter-chip.full { background: #f8bbd9; border-color: var(--pink); }
+
+.shelf-letter-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.letter-section {
+  background: var(--card);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: var(--shadow);
+}
+.letter-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 1rem;
+  color: var(--magenta);
+}
+.letter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, var(--pink), var(--magenta));
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+.letter-occ {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+.slots-grid-letter {
+  grid-template-columns: repeat(5, 1fr) !important;
+  gap: 8px;
+}

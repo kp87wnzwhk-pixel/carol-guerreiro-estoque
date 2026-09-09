@@ -52,7 +52,10 @@ import {
 } from './sync.js';
 
 const TOTAL_SHELVES = 32;
-const SLOTS_PER_SHELF = 20;
+const SLOTS_PER_SHELF = 25; // 5 letras × 5 caixas
+const SHELF_LETTERS = ['A', 'B', 'C', 'D', 'E'];
+const SLOTS_PER_LETTER = 5; // cada fileira A–E cabe 5 caixas
+
 
 let boxes = [];
 let corridorFilter = 'all';
@@ -311,17 +314,49 @@ function renderMap() {
     const first = firstClientOnShelf(boxes, n);
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'shelf-card';
+    btn.className = 'shelf-card shelf-card-separated';
     btn.setAttribute('role', 'listitem');
     if (hasDel) btn.classList.add('delivery');
     else if (occ > 0) btn.classList.add('occupied');
     else btn.classList.add('empty');
 
+    const lettersHtml = SHELF_LETTERS.map((L) => {
+      const c = letterOccupancy(n, L);
+      const full = c >= SLOTS_PER_LETTER;
+      const cls =
+        c === 0 ? 'letter-chip empty' : full ? 'letter-chip full' : 'letter-chip used';
+      return (
+        '<span class="' +
+        cls +
+        '"><strong>' +
+        L +
+        '</strong><small>' +
+        c +
+        '/' +
+        SLOTS_PER_LETTER +
+        '</small></span>'
+      );
+    }).join('');
+
     btn.innerHTML =
-      '<span class="shelf-num">' + n + '</span>' +
-      '<span class="shelf-occ">' + occ + '/' + SLOTS_PER_SHELF + '</span>' +
+      '<div class="shelf-card-top">' +
+      '<span class="shelf-num">Prateleira ' +
+      n +
+      '</span>' +
+      '<span class="shelf-occ">' +
+      occ +
+      '/' +
+      SLOTS_PER_SHELF +
+      '</span>' +
+      '</div>' +
+      '<div class="shelf-letters">' +
+      lettersHtml +
+      '</div>' +
       (first
-        ? '<span class="shelf-client">' + escapeHtml(first.name) + '</span>'
+        ? '<span class="shelf-client">' +
+          escapeHtml(first.name) +
+          (occ > 1 ? ' +' + (occ - 1) : '') +
+          '</span>'
         : '<span class="shelf-client">vazia</span>');
 
     btn.addEventListener('click', () => openShelf(n));
@@ -335,6 +370,32 @@ function range(a, b) {
   return out;
 }
 
+function letterOfSlot(slot) {
+  const s = Math.max(1, Math.min(SLOTS_PER_SHELF, Number(slot) || 1));
+  const idx = Math.floor((s - 1) / SLOTS_PER_LETTER);
+  return SHELF_LETTERS[Math.min(SHELF_LETTERS.length - 1, Math.max(0, idx))];
+}
+
+function slotsForLetter(letter) {
+  const idx = SHELF_LETTERS.indexOf(String(letter || 'A').toUpperCase());
+  const i = idx < 0 ? 0 : idx;
+  const start = i * SLOTS_PER_LETTER + 1;
+  return range(start, start + SLOTS_PER_LETTER - 1);
+}
+
+function firstFreeSlotInLetter(shelf, letter) {
+  for (const slot of slotsForLetter(letter)) {
+    if (!boxAt(boxes, shelf, slot)) return slot;
+  }
+  return null;
+}
+
+function letterOccupancy(shelf, letter) {
+  return boxes.filter(
+    (b) => b.shelf === shelf && letterOfSlot(b.slot) === letter
+  ).length;
+}
+
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, '&amp;')
@@ -345,49 +406,95 @@ function escapeHtml(s) {
 
 /* ---------- Shelf slots ---------- */
 function openShelf(shelf) {
-  openPanel('Prateleira ' + shelf, (body) => {
-    const grid = document.createElement('div');
-    grid.className = 'slots-grid';
-    for (let slot = 1; slot <= SLOTS_PER_SHELF; slot++) {
-      const box = boxAt(boxes, shelf, slot);
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'slot-btn';
-      if (box && box.deliveryRequested) btn.classList.add('delivery');
-      else if (box) btn.classList.add('occupied');
-      else btn.classList.add('empty');
+  openPanel('Prateleira ' + shelf + ' · letras A–E', (body) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'shelf-letter-panels';
 
-      let nameBit = box ? escapeHtml(box.name.split(' ')[0]) : 'livre';
-      btn.innerHTML =
-        '<span class="slot-n">' + slot + '</span>' +
-        '<span class="slot-name">' + nameBit + '</span>';
+    for (const letter of SHELF_LETTERS) {
+      const section = document.createElement('section');
+      section.className = 'letter-section';
 
-      btn.addEventListener('click', () => {
-        if (box) openBoxDetail(box.id);
-        else openRegisterForm({ shelf, slot });
+      const title = document.createElement('h3');
+      title.className = 'letter-section-title';
+      const occL = letterOccupancy(shelf, letter);
+      title.innerHTML =
+        '<span class="letter-badge">' +
+        letter +
+        '</span>' +
+        '<span>Fileira ' +
+        letter +
+        '</span>' +
+        '<span class="letter-occ">' +
+        occL +
+        '/' +
+        SLOTS_PER_LETTER +
+        '</span>';
+      section.appendChild(title);
+
+      const grid = document.createElement('div');
+      grid.className = 'slots-grid slots-grid-letter';
+      for (const slot of slotsForLetter(letter)) {
+        const box = boxAt(boxes, shelf, slot);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'slot-btn';
+        if (box && box.deliveryRequested) btn.classList.add('delivery');
+        else if (box) btn.classList.add('occupied');
+        else btn.classList.add('empty');
+        const nameBit = box ? escapeHtml(box.name.split(' ')[0]) : 'livre';
+        btn.innerHTML =
+          '<span class="slot-n">' +
+          letter +
+          '·' +
+          slot +
+          '</span>' +
+          '<span class="slot-name">' +
+          nameBit +
+          '</span>';
+        btn.addEventListener('click', () => {
+          if (box) openBoxDetail(box.id);
+          else openRegisterForm({ shelf, slot, letter });
+        });
+        grid.appendChild(btn);
+      }
+      section.appendChild(grid);
+
+      const addL = document.createElement('button');
+      addL.type = 'button';
+      addL.className = 'btn btn-outline btn-sm btn-block';
+      addL.style.marginTop = '8px';
+      addL.textContent = 'Cadastrar na letra ' + letter;
+      addL.addEventListener('click', () => {
+        const free = firstFreeSlotInLetter(shelf, letter);
+        if (free == null) {
+          alertMsg('Letra ' + letter + ' da prateleira ' + shelf + ' está cheia.');
+          return;
+        }
+        openRegisterForm({ shelf, slot: free, letter });
       });
-      grid.appendChild(btn);
+      section.appendChild(addL);
+      wrap.appendChild(section);
     }
-    body.appendChild(grid);
+
+    body.appendChild(wrap);
 
     const add = document.createElement('button');
     add.type = 'button';
-    add.className = 'btn btn-primary btn-block';
+    add.className = 'btn btn-primary btn-lg btn-block';
     add.style.marginTop = '14px';
-    add.textContent = 'Cadastrar nesta prateleira';
+    add.textContent = 'Cadastrar nesta prateleira (1ª vaga)';
     add.addEventListener('click', () => {
       const free = firstFreeSlot(boxes, shelf);
       if (free == null) {
-        alertMsg('Prateleira ' + shelf + ' está cheia (20/20).');
+        alertMsg('Prateleira ' + shelf + ' está cheia (25/25).');
         return;
       }
-      openRegisterForm({ shelf, slot: free });
+      openRegisterForm({ shelf, slot: free, letter: letterOfSlot(free) });
     });
     body.appendChild(add);
   });
 }
 
-/* ---------- Register / Edit form ---------- */
 function openRegisterForm(opts = {}) {
   const editing = opts.boxId ? getBox(opts.boxId) : null;
   const title = editing ? 'Editar caixa' : 'Cadastrar caixa';
@@ -408,9 +515,11 @@ function openRegisterForm(opts = {}) {
       <div class="form-row">
         <label for="f-shelf">Prateleira (1–32) <span class="required">*</span></label>
         <select id="f-shelf"></select>
+        <label for="f-letter">Letra A–E <span class="required">*</span></label>
+        <select id="f-letter"></select>
       </div>
       <div class="form-row">
-        <label for="f-slot">Slot (1–20) <span class="required">*</span></label>
+        <label for="f-slot">Posição (slot 1–25) <span class="required">*</span></label>
         <select id="f-slot"></select>
       </div>
       <div class="form-row">
@@ -423,18 +532,43 @@ function openRegisterForm(opts = {}) {
     body.appendChild(wrap);
 
     const shelfSel = $('#f-shelf', wrap);
+    const letterSel = $('#f-letter', wrap);
     const slotSel = $('#f-slot', wrap);
     for (let i = 1; i <= TOTAL_SHELVES; i++) {
       const o = document.createElement('option');
       o.value = String(i);
-      o.textContent = String(i) + ' (corredor ' + corridorOf(i) + ')';
+      o.textContent = 'Prateleira ' + i + ' (corredor ' + corridorOf(i) + ')';
       shelfSel.appendChild(o);
     }
-    for (let i = 1; i <= SLOTS_PER_SHELF; i++) {
+    for (const L of SHELF_LETTERS) {
       const o = document.createElement('option');
-      o.value = String(i);
-      o.textContent = String(i);
-      slotSel.appendChild(o);
+      o.value = L;
+      o.textContent = 'Fileira ' + L + ' (até 5 caixas)';
+      letterSel.appendChild(o);
+    }
+
+    function refillSlotsForLetter() {
+      const letter = letterSel.value || 'A';
+      const shelf = Number(shelfSel.value) || 1;
+      const wanted = opts.slot || (editing && editing.slot);
+      slotSel.innerHTML = '';
+      for (const slot of slotsForLetter(letter)) {
+        const occ = boxAt(boxes, shelf, slot);
+        const o = document.createElement('option');
+        o.value = String(slot);
+        const pos = ((slot - 1) % SLOTS_PER_LETTER) + 1;
+        o.textContent =
+          'Caixa ' + pos + ' na ' + letter +
+          (occ && (!editing || occ.id !== editing.id) ? ' (ocupado: ' + occ.name.split(' ')[0] + ')' : ' (livre)');
+        if (occ && (!editing || occ.id !== editing.id)) o.disabled = true;
+        slotSel.appendChild(o);
+      }
+      const free = firstFreeSlotInLetter(shelf, letter);
+      if (wanted && slotsForLetter(letter).includes(Number(wanted))) {
+        slotSel.value = String(wanted);
+      } else if (free != null) {
+        slotSel.value = String(free);
+      }
     }
 
     const nameIn = $('#f-name', wrap);
@@ -446,15 +580,18 @@ function openRegisterForm(opts = {}) {
       nameIn.value = editing.name;
       phoneIn.value = editing.phone;
       shelfSel.value = String(editing.shelf);
-      slotSel.value = String(editing.slot);
+      letterSel.value = letterOfSlot(editing.slot);
       notesIn.value = editing.notes || '';
     } else {
       shelfSel.value = String(opts.shelf || 1);
-      slotSel.value = String(opts.slot || firstFreeSlot(boxes, opts.shelf || 1) || 1);
+      letterSel.value = opts.letter || letterOfSlot(opts.slot || 1);
       if (opts.name) nameIn.value = opts.name;
       if (opts.phone) phoneIn.value = formatPhoneBR(opts.phone);
       if (opts.notes) notesIn.value = opts.notes;
     }
+    refillSlotsForLetter();
+    shelfSel.addEventListener('change', refillSlotsForLetter);
+    letterSel.addEventListener('change', refillSlotsForLetter);
 
     if (opts.viaPhoto) {
       const badge = document.createElement('div');
@@ -505,9 +642,11 @@ function openRegisterForm(opts = {}) {
       const occupant = boxAt(boxes, shelf, slot);
       if (occupant && (!editing || occupant.id !== editing.id)) {
         alertEl.innerHTML =
-          '<div class="alert-box">Slot ' +
+          '<div class="alert-box">Posição ' +
           slot +
-          ' da prateleira ' +
+          ' (fileira ' +
+          letterOfSlot(slot) +
+          ') da prateleira ' +
           shelf +
           ' já está ocupado por ' +
           escapeHtml(occupant.name) +
@@ -573,8 +712,10 @@ function openBoxDetail(boxId) {
       '<p class="detail-line"><strong>Telefone:</strong> ' + escapeHtml(box.phone) + '</p>' +
       '<p class="detail-line"><strong>Local:</strong> Prateleira ' +
       box.shelf +
-      ' · Slot ' +
-      box.slot +
+      ' · Fileira ' +
+      letterOfSlot(box.slot) +
+      ' · Caixa ' +
+      (((Number(box.slot) - 1) % SLOTS_PER_LETTER) + 1) +
       ' · Corredor ' +
       corridorOf(box.shelf) +
       '</p>' +
@@ -740,8 +881,10 @@ function printLabel(box) {
     '<p><em>No Brasil é luxo, com a Carol é barato.</em></p>' +
     '<p class="print-shelf">Prateleira ' +
     box.shelf +
-    ' · Slot ' +
-    box.slot +
+    ' · Fileira ' +
+    letterOfSlot(box.slot) +
+    ' · Pos. ' +
+    (((box.slot - 1) % SLOTS_PER_LETTER) + 1) +
     '</p>' +
     '<p><strong>' +
     escapeHtml(box.name) +
@@ -790,8 +933,8 @@ function setupDeliveryBlock() {
       box.name +
       ' — prateleira ' +
       box.shelf +
-      ', slot ' +
-      box.slot +
+      ', fileira ' +
+      letterOfSlot(box.slot) +
       '.';
     renderSearchIfAny();
   });
@@ -820,8 +963,8 @@ function setupDeliveryBlock() {
       box.name +
       ' (prat. ' +
       box.shelf +
-      '/' +
-      box.slot +
+      ' / ' +
+      letterOfSlot(box.slot) +
       ').';
     renderSearchIfAny();
   });
