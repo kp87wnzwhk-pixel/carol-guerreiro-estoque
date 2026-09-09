@@ -24,6 +24,7 @@
       <h1 class="brand">Carol Guerreiro Importado</h1>
       <p class="slogan">No Brasil é luxo, com a Carol é barato.</p>
       <p id="sync-status" class="sync-status sync-loading" data-mode="loading">Conectando nuvem…</p>
+      <p class="sync-reset-hint"><a href="reset.html?auto=1">Não conecta? Toque aqui para limpar cache</a></p>
     </header>
 
     <!-- Delivery request block (fixed home) -->
@@ -151,12 +152,6 @@
   nuke().then(loadApp);
 })();
 </script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
-      });
-    }
-  </script>
+
 </body>
 </html>
