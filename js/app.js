@@ -1209,22 +1209,27 @@ async function init() {
   renderMap();
   updateSyncBadge();
 
-  // Limpa SW/cache antigo que bloqueava o Firebase
+  // Limpa SW em paralelo (não bloqueia a nuvem)
   if ('serviceWorker' in navigator) {
-    try {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister()));
-      if (window.caches) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => caches.delete(k)));
-      }
-    } catch (err) {
-      console.warn('SW cleanup:', err);
-    }
+    Promise.race([
+      (async () => {
+        try {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map((r) => r.unregister()));
+          if (window.caches) {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((k) => caches.delete(k)));
+          }
+        } catch (err) {
+          console.warn('SW cleanup:', err);
+        }
+      })(),
+      new Promise((r) => setTimeout(r, 1500)),
+    ]).catch(() => {});
   }
 
   try {
-    await withTimeout(initSync(), 12000);
+    await withTimeout(initSync(), 10000);
   } catch (e) {
     console.warn('initSync:', e);
     markSyncError(e && e.code === 'TIMEOUT' ? e : e || new Error('falha ao conectar'));

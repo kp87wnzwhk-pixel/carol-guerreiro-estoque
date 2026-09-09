@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="css/styles.css?v=6" />
+  <link rel="stylesheet" href="css/styles.css?v=7" />
 </head>
 <body>
   <div id="app">
@@ -104,52 +104,66 @@
 
   <script>
 (function () {
-  var VER = '6';
-  var FLAG = 'cgi_estoque_clean_v' + VER;
-  var params = new URLSearchParams(location.search);
-  var alreadyClean = params.get('clean') === '1' || params.get('reset');
+  var VER = '7';
+  var statusEl = document.getElementById('sync-status');
+
+  function setStatus(text, mode) {
+    if (!statusEl) return;
+    statusEl.textContent = text;
+    statusEl.dataset.mode = mode || 'loading';
+    statusEl.className = 'sync-status sync-' + (mode || 'loading');
+  }
 
   function loadApp() {
+    if (window.__cgiAppLoading) return;
+    window.__cgiAppLoading = true;
     var s = document.createElement('script');
     s.type = 'module';
     s.src = 'js/app.js?v=' + VER + '&t=' + Date.now();
     s.onerror = function () {
-      var el = document.getElementById('sync-status');
-      if (el) {
-        el.textContent = 'Falha ao carregar o app — abra /reset.html';
-        el.className = 'sync-status sync-error';
-      }
+      setStatus('Falha ao carregar — toque em limpar cache', 'error');
     };
     document.body.appendChild(s);
   }
 
+  // NÃO espera limpar SW pra carregar o app (isso travava no Safari)
+  loadApp();
+
+  // Limpeza em paralelo, com timeout curto
+  var nukeDone = false;
   function nuke() {
-    var p = Promise.resolve();
-    if (navigator.serviceWorker) {
-      p = navigator.serviceWorker.getRegistrations().then(function (regs) {
-        return Promise.all(regs.map(function (r) { return r.unregister(); }));
-      });
-    }
-    return p.then(function () {
-      if (!window.caches) return;
-      return caches.keys().then(function (keys) {
-        return Promise.all(keys.map(function (k) { return caches.delete(k); }));
-      });
-    }).catch(function () {});
+    var tasks = [];
+    try {
+      if (navigator.serviceWorker) {
+        tasks.push(
+          navigator.serviceWorker.getRegistrations().then(function (regs) {
+            return Promise.all(regs.map(function (r) { return r.unregister(); }));
+          })
+        );
+      }
+      if (window.caches) {
+        tasks.push(
+          caches.keys().then(function (keys) {
+            return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+          })
+        );
+      }
+    } catch (e) {}
+    return Promise.all(tasks).catch(function () {});
   }
+  Promise.race([
+    nuke().then(function () { nukeDone = true; }),
+    new Promise(function (r) { setTimeout(r, 1500); })
+  ]).then(function () {});
 
-  // Sempre tenta limpar SW; na 1ª visita da v6 recarrega com ?clean=1
-  try {
-    if (!alreadyClean && localStorage.getItem(FLAG) !== '1') {
-      nuke().then(function () {
-        try { localStorage.setItem(FLAG, '1'); } catch (e) {}
-        location.replace('./?v=' + VER + '&clean=1&t=' + Date.now());
-      });
-      return;
+  // Watchdog: se em 10s ainda "Conectando", mostra erro + caminho
+  setTimeout(function () {
+    if (!statusEl) return;
+    var t = statusEl.textContent || '';
+    if (/Conectando/i.test(t)) {
+      setStatus('Nuvem demorou — dados neste aparelho. Toque em limpar cache', 'error');
     }
-  } catch (e) {}
-
-  nuke().then(loadApp);
+  }, 10000);
 })();
 </script>
 
