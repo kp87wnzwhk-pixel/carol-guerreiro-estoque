@@ -6,6 +6,7 @@
 const BOXES_KEY = 'cgi_boxes_v1';
 const BACKUPS_KEY = 'cgi_auto_backups_v1';
 const MAX_BACKUPS = 15;
+const DELETED_KEY = 'cgi_estoque_deleted_v1';
 
 /** Seed único: Graziely */
 const SEED_BOX = {
@@ -281,3 +282,44 @@ function range(a, b) {
 }
 
 export { SEED_BOX, BOXES_KEY };
+
+export function getDeletedIds() {
+  try {
+    const raw = localStorage.getItem(DELETED_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function isTombstoned(id) {
+  if (!id) return false;
+  return getDeletedIds().includes(String(id));
+}
+
+export function addTombstone(id) {
+  if (!id) return;
+  const set = new Set(getDeletedIds());
+  set.add(String(id));
+  try {
+    localStorage.setItem(DELETED_KEY, JSON.stringify([...set]));
+  } catch (e) {
+    console.warn('tombstone save failed', e);
+  }
+}
+
+export function absorbTombstoneIds(ids) {
+  if (!ids || !ids.length) return;
+  const set = new Set(getDeletedIds());
+  for (const id of ids) set.add(String(id));
+  try {
+    localStorage.setItem(DELETED_KEY, JSON.stringify([...set]));
+  } catch (_) {}
+}
+
+export function purgeTombstoned(boxes) {
+  const del = new Set(getDeletedIds());
+  if (!del.size) return boxes || [];
+  return (boxes || []).filter((b) => b && !del.has(String(b.id)));
+}

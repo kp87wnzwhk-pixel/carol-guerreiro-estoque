@@ -22,6 +22,11 @@ import {
   normalizeBox,
   corridorOf,
   shelvesInCorridor,
+  getDeletedIds,
+  isTombstoned,
+  addTombstone,
+  absorbTombstoneIds,
+  purgeTombstoned,
 } from './storage.js';
 import {
   addPhoto,
@@ -31,6 +36,18 @@ import {
   photoObjectURL,
 } from './db.js';
 import { recognizeLabel } from './ocr.js';
+import {
+  initSync,
+  isSyncActive,
+  getSyncStatus,
+  syncUpsertBox,
+  syncDeleteBox,
+  syncMarkExcluded,
+  syncPullAll,
+  syncPullExcludedIds,
+  subscribeBoxes,
+  subscribeExcluded,
+} from './sync.js';
 
 const TOTAL_SHELVES = 32;
 const SLOTS_PER_SHELF = 20;
@@ -56,8 +73,130 @@ function trackUrl(u) {
 }
 
 function persist() {
+  boxes = purgeTombstoned(boxes);
   saveBoxes(boxes);
   renderMap();
+  updateSyncBadge();
+  // nuvem em background (não bloqueia UI)
+  if (isSyncActive()) {
+    Promise.all(
+      boxes.filter((b) => b && b.id && !isTombstoned(b.id)).map((b) =>
+        syncUpsertBox(b).catch((e) => console.warn('upsert', e))
+      )
+    ).catch(() => {});
+  }
+}
+
+function updateSyncBadge() {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  const st = getSyncStatus();
+  el.textContent = st.message;
+  el.dataset.mode = st.mode;
+  el.className = 'sync-status sync-' + st.mode;
+}
+
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => {
+      const err = new Error('TIMEOUT');
+      err.code = 'TIMEOUT';
+      reject(err);
+    }, ms);
+    Promise.resolve(promise).then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      }
+    );
+  });
+}
+
+function mergeBoxes(local, remote, deletedSet) {
+  const map = new Map();
+  for (const b of local || []) {
+    if (!b || !b.id || deletedSet.has(String(b.id))) continue;
+    map.set(String(b.id), normalizeBox(b));
+  }
+  for (const b of remote || []) {
+    if (!b || !b.id || deletedSet.has(String(b.id))) continue;
+    const id = String(b.id);
+    const n = normalizeBox(b);
+    const cur = map.get(id);
+    if (!cur) {
+      map.set(id, n);
+      continue;
+    }
+    const tu = Date.parse(cur.updatedAt || 0) || 0;
+    const ru = Date.parse(n.updatedAt || 0) || 0;
+    map.set(id, ru >= tu ? n : cur);
+  }
+  return [...map.values()];
+}
+
+async function pullAndMergeCloud() {
+  if (!isSyncActive()) return;
+  const excluded = await syncPullExcludedIds();
+  absorbTombstoneIds(excluded);
+  const deletedSet = new Set(getDeletedIds());
+  const remote = await syncPullAll();
+  // Nunca substituir local por remoto vazio se já temos dados
+  if ((!remote || remote.length === 0) && boxes.length > 0) {
+    // sobe locais que ainda não estão na nuvem
+    for (const b of boxes) {
+      if (b && b.id && !deletedSet.has(String(b.id))) {
+        try { await syncUpsertBox(b); } catch (_) {}
+      }
+    }
+    return;
+  }
+  boxes = mergeBoxes(boxes, remote, deletedSet);
+  boxes = purgeTombstoned(boxes);
+  saveBoxes(boxes);
+  renderMap();
+  updateSyncBadge();
+}
+
+function startRealtimeSync() {
+  if (!isSyncActive()) return;
+  subscribeExcluded((ids) => {
+    absorbTombstoneIds(ids);
+    const before = boxes.length;
+    boxes = purgeTombstoned(boxes);
+    if (boxes.length !== before) {
+      saveBoxes(boxes);
+      renderMap();
+    }
+  });
+  subscribeBoxes((remote) => {
+    const deletedSet = new Set(getDeletedIds());
+    if ((!remote || remote.length === 0) && boxes.length > 0) return;
+    boxes = mergeBoxes(boxes, remote, deletedSet);
+    boxes = purgeTombstoned(boxes);
+    saveBoxes(boxes);
+    renderMap();
+    updateSyncBadge();
+  });
+}
+
+async function removeBoxEverywhere(box) {
+  addTombstone(box.id);
+  boxes = boxes.filter((b) => b.id !== box.id);
+  saveBoxes(boxes);
+  renderMap();
+  updateSyncBadge();
+  try {
+    if (isSyncActive()) {
+      await syncMarkExcluded(box.id);
+      await syncDeleteBox(box.id);
+    }
+  } catch (e) {
+    console.warn('cloud delete:', e);
+  }
 }
 
 function getBox(id) {
@@ -579,9 +718,8 @@ function openBoxDetail(boxId) {
       ) {
         return;
       }
-      deleteAllPhotosForBox(box.id).then(() => {
-        boxes = boxes.filter((b) => b.id !== box.id);
-        persist();
+      deleteAllPhotosForBox(box.id).then(async () => {
+        await removeBoxEverywhere(box);
         closeAllPanels();
       });
     });
@@ -922,9 +1060,8 @@ function setupDataTools() {
       // save current as auto-backup via saveBoxes first
       saveBoxes(boxes);
       boxes = imported.map((b) => normalizeBox(b));
-      saveBoxes(boxes);
-      renderMap();
-      alertMsg('Importação concluída: ' + boxes.length + ' caixas.');
+      persist();
+      alertMsg('Importação concluída: ' + boxes.length + ' caixas. Sincronizando nuvem…');
     } catch (e) {
       alertMsg('Falha ao importar JSON: ' + (e.message || e));
     }
@@ -1058,8 +1195,9 @@ function setupPanelChrome() {
 }
 
 /* ---------- Boot ---------- */
-function init() {
-  boxes = loadBoxes();
+async function init() {
+  boxes = purgeTombstoned(loadBoxes());
+  getDeletedIds();
   setupDeliveryBlock();
   setupSearch();
   setupPhotoRegister();
@@ -1067,6 +1205,41 @@ function init() {
   setupCorridors();
   setupPanelChrome();
   renderMap();
+  updateSyncBadge();
+
+  try {
+    await withTimeout(initSync(), 8000);
+  } catch (e) {
+    console.warn('initSync:', e);
+  }
+  updateSyncBadge();
+
+  try {
+    await withTimeout(pullAndMergeCloud(), 10000);
+  } catch (e) {
+    console.warn('pull cloud:', e);
+  }
+  updateSyncBadge();
+  startRealtimeSync();
+
+  if ('serviceWorker' in navigator) {
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      // limpa SW antigo pesado; registra v4 leve
+      for (const r of regs) {
+        /* keep registering below */
+      }
+      await navigator.serviceWorker.register('./sw.js?v=4');
+    } catch (err) {
+      console.warn('SW:', err);
+    }
+  }
 }
 
-init();
+init().catch((err) => {
+  console.error(err);
+  try {
+    renderMap();
+    updateSyncBadge();
+  } catch (_) {}
+});

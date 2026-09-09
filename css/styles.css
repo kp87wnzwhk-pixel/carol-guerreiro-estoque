@@ -689,3 +689,14 @@ img { max-width: 100%; display: block; }
   font-weight: 800;
   margin: 12px 0;
 }
+
+
+.sync-status {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  opacity: 0.9;
+}
+.sync-status.sync-sync { color: #1b7a3d; }
+.sync-status.sync-error { color: #b00020; }
+.sync-status.sync-loading,
+.sync-status.sync-local { color: #666; }

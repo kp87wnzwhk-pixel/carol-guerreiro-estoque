@@ -1,5 +1,5 @@
-/* Service worker — cache estático básico para uso offline leve */
-const CACHE = 'cgi-estoque-v3';
+/* Service worker — cache leve v4 (sem vendor OCR enorme) */
+const CACHE = 'cgi-estoque-v4';
 const ASSETS = [
   './',
   './index.html',
@@ -8,25 +8,24 @@ const ASSETS = [
   './js/storage.js',
   './js/db.js',
   './js/ocr.js',
+  './js/sync.js',
+  './js/firebase-config.js',
   './js/cdn.json',
   './manifest.json',
   './icons/logo.svg',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png',
-  './vendor/tesseract.min.js',
-  './vendor/worker.min.js',
-  './vendor/tesseract-core-simd-lstm.wasm.js',
-  './vendor/tesseract-core-simd-lstm.wasm',
-  './vendor/tesseract-core-lstm.wasm.js',
-  './vendor/tesseract-core-lstm.wasm',
-  './vendor/eng.traineddata.gz',
-  './vendor/por.traineddata.gz',
 ];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE).then(async (cache) => {
+      for (const url of ASSETS) {
+        try { await cache.add(url); } catch (e) { console.warn('SW skip', url, e); }
+      }
+      await self.skipWaiting();
+    })
   );
 });
 
@@ -41,11 +40,16 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.pathname.includes('/vendor/') || url.hostname.includes('gstatic.com') || url.hostname.includes('googleapis.com')) {
+    event.respondWith(fetch(req));
+    return;
+  }
   event.respondWith(
     caches.match(req).then((cached) => {
       const fetched = fetch(req)
         .then((res) => {
-          if (res && res.ok && new URL(req.url).origin === self.location.origin) {
+          if (res && res.ok && url.origin === self.location.origin) {
             const copy = res.clone();
             caches.open(CACHE).then((c) => c.put(req, copy));
           }
