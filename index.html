@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/svg+xml" href="icons/logo.svg" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
-  <link rel="stylesheet" href="css/styles.css?v=12" />
+  <link rel="stylesheet" href="css/styles.css?v=13" />
 </head>
 <body>
   <div id="app">
@@ -104,7 +104,8 @@
 
   <script>
 (function () {
-  var VER = '12';
+  var VER = '13';
+  var FLAG = 'cgi_estoque_force_13';
   var statusEl = document.getElementById('sync-status');
 
   function setStatus(text, mode) {
@@ -126,11 +127,6 @@
     document.body.appendChild(s);
   }
 
-  // NÃO espera limpar SW pra carregar o app (isso travava no Safari)
-  loadApp();
-
-  // Limpeza em paralelo, com timeout curto
-  var nukeDone = false;
   function nuke() {
     var tasks = [];
     try {
@@ -151,6 +147,25 @@
     } catch (e) {}
     return Promise.all(tasks).catch(function () {});
   }
+  // One-shot force clean for v13 (drops stale OCR/review UI cache)
+  try {
+    if (localStorage.getItem(FLAG) !== '1') {
+      Promise.race([
+        nuke(),
+        new Promise(function (r) { setTimeout(r, 1500); })
+      ]).then(function () {
+        try { localStorage.setItem(FLAG, '1'); } catch (e) {}
+        location.replace('./?v=' + VER + '&clean=1&t=' + Date.now());
+      });
+      return;
+    }
+  } catch (e) {}
+
+  // NÃO espera limpar SW pra carregar o app (isso travava no Safari)
+  loadApp();
+
+  // Limpeza em paralelo, com timeout curto
+  var nukeDone = false;
   Promise.race([
     nuke().then(function () { nukeDone = true; }),
     new Promise(function (r) { setTimeout(r, 1500); })

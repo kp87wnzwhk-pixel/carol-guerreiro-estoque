@@ -1055,7 +1055,7 @@ function openPhotoFlow() {
       if (!file) return;
       preview.hidden = false;
       preview.src = trackUrl(URL.createObjectURL(file));
-      status.textContent = 'Lendo post-it…';
+      status.textContent = 'Lendo só nome e telefone…';
 
       let parsed = { name: '', phoneFormatted: '', phoneDigits: '', rawText: '' };
       try {
