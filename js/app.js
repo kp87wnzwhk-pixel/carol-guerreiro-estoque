@@ -1031,7 +1031,7 @@ function openPhotoFlow() {
     const wrap = document.createElement('div');
     wrap.className = 'camera-area detail-card';
     wrap.innerHTML = `
-      <p>Foto do <strong>post-it</strong> (nome + telefone). Depois já abre o cadastro.</p>
+      <p>Foto do <strong>post-it amarelo</strong> (nome + telefone). Sem tela de revisão — já cai no cadastro.</p>
       <img id="ocr-preview" class="camera-preview" alt="Prévia" hidden />
       <p class="ocr-status" id="ocr-status" role="status"></p>
       <div class="btn-row">
@@ -1095,78 +1095,6 @@ function openPhotoFlow() {
   });
 }
 
-function showOcrConfirm(host, parsed, fileBlob) {
-  host.hidden = false;
-  host.innerHTML = `
-    <div class="form-row">
-      <label for="ocr-name">Nome</label>
-      <input id="ocr-name" type="text" />
-    </div>
-    <div class="form-row">
-      <label for="ocr-phone">Telefone</label>
-      <input id="ocr-phone" type="tel" inputmode="tel" placeholder="(21) 99999-0000" />
-    </div>
-    <div class="form-row">
-      <label for="ocr-shelf">Prateleira</label>
-      <select id="ocr-shelf"></select>
-    </div>
-    <div class="form-row">
-      <label for="ocr-slot">Slot (livre automático ou escolha)</label>
-      <select id="ocr-slot"></select>
-    </div>
-    <p class="hint">O primeiro slot livre da prateleira é selecionado automaticamente.</p>
-    <button type="button" class="btn btn-primary btn-lg btn-block" id="ocr-continue">Continuar para confirmar</button>
-  `;
-
-  const shelfSel = $('#ocr-shelf', host);
-  const slotSel = $('#ocr-slot', host);
-  for (let i = 1; i <= TOTAL_SHELVES; i++) {
-    const o = document.createElement('option');
-    o.value = String(i);
-    o.textContent = String(i);
-    shelfSel.appendChild(o);
-  }
-
-  function refillSlots() {
-    const shelf = Number(shelfSel.value);
-    slotSel.innerHTML = '';
-    const free = firstFreeSlot(boxes, shelf);
-    for (let i = 1; i <= SLOTS_PER_SHELF; i++) {
-      const occ = boxAt(boxes, shelf, i);
-      const o = document.createElement('option');
-      o.value = String(i);
-      o.textContent = occ ? i + ' (ocupado)' : i + ' (livre)';
-      o.disabled = Boolean(occ);
-      slotSel.appendChild(o);
-    }
-    if (free != null) slotSel.value = String(free);
-  }
-
-  shelfSel.addEventListener('change', refillSlots);
-  refillSlots();
-
-  const nameIn = $('#ocr-name', host);
-  const phoneIn = $('#ocr-phone', host);
-  bindPhoneMask(phoneIn);
-  nameIn.value = parsed.name || '';
-  phoneIn.value = parsed.phoneFormatted || formatPhoneBR(parsed.phoneDigits || '');
-
-  $('#ocr-continue', host).addEventListener('click', () => {
-    const shelf = Number(shelfSel.value);
-    const slot = Number(slotSel.value);
-    openRegisterForm({
-      replace: true,
-      name: nameIn.value.trim(),
-      phone: phoneIn.value,
-      shelf,
-      slot,
-      viaPhoto: true,
-      photoBlobs: fileBlob ? [fileBlob] : [],
-    });
-  });
-}
-
-/* ---------- Backup / Import / CSV / Restore ---------- */
 function setupDataTools() {
   $('#btn-backup').addEventListener('click', () => {
     const json = exportJSON(boxes);

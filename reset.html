@@ -42,7 +42,7 @@
       }
       try {
         Object.keys(localStorage).forEach(function (k) {
-          if (k.indexOf('cgi_estoque_clean') === 0) localStorage.removeItem(k);
+          if (k.indexOf('cgi_estoque_clean') === 0 || k.indexOf('cgi_estoque_force') === 0) localStorage.removeItem(k);
         });
       } catch (e) {}
       log('OK. Abrindo o app…');
