@@ -308,6 +308,11 @@ function isSkipNameLine(line) {
   if (/telefone|phone|cel|whats|whatsapp|peso|\bkg\b|\bkq\b|gramas|\bcm\b|medida|caixa|comprimento|largura|altura|endere[cç]o|\bcep\b|volume/i.test(line)) {
     return true;
   }
+  // Embalagem / marketing no fundo da foto
+  if (/variety|crispy|creamy|wafer|bars?|pack|net\s*wt|ingredients|chocolate|cookie|biscuit|imported|product/i.test(line)) {
+    return true;
+  }
+  if (/\b(NT|ARET|DANS|PACK|LO)\b/.test(line) && line === line.toUpperCase()) return true;
   // Phone-looking line
   if (/\(?\s*\d{2}\s*\)?\s*\d{4,5}/.test(line)) return true;
   return false;
@@ -333,11 +338,15 @@ function scoreNameLine(rawLine) {
   }
   if (isAllCapsShortCode(line, letters)) return { score: 5, name: line };
   if (mostlyConsonantNoise(letters)) return { score: 8, name: line };
+  // Embalagem em caixa alta longa
+  if (line === line.toUpperCase() && letters.length >= 12 && letterWords.length >= 2) {
+    return { score: 4, name: line }; // ALLCAPS_PACK
+  }
 
   let score = 10;
   if (letterWords.length >= 2 && letters.length >= 6) score += 40;
   else if (letterWords.length >= 2) score += 25;
-  else if (letterWords.length === 1 && letters.length >= 4) score += 35; // Ligia, Roberto
+  else if (letterWords.length === 1 && letters.length >= 4 && letters.length <= 14) score += 45; // Marina, Ligia
   else if (letters.length >= 6) score += 15;
   else score += 5;
 
@@ -424,7 +433,7 @@ export async function preprocessImage(blobOrFile) {
         for (let x = 0; x < w; x++) {
           const i = (y * w + x) * 4;
           const r = pd[i], g = pd[i + 1], b = pd[i + 2];
-          if (r > 160 && g > 130 && b < 140 && r + g > b * 2.2 && r > b + 40) {
+          if (r > 140 && g > 110 && b < 160 && r + g > b * 1.8 && r > b + 25 && g > b + 15) {
             yellow++;
             if (x < minX) minX = x;
             if (y < minY) minY = y;
@@ -433,7 +442,7 @@ export async function preprocessImage(blobOrFile) {
           }
         }
       }
-      if (yellow > w * h * 0.012 && maxX > minX + 40 && maxY > minY + 40) {
+      if (yellow > w * h * 0.008 && maxX > minX + 30 && maxY > minY + 30) {
         const pad = Math.round(Math.min(w, h) * 0.03);
         const sx = Math.max(0, minX - pad);
         const sy = Math.max(0, minY - pad);

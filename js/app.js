@@ -1031,24 +1031,20 @@ function openPhotoFlow() {
     const wrap = document.createElement('div');
     wrap.className = 'camera-area detail-card';
     wrap.innerHTML = `
-      <p>Tire uma foto do rótulo (câmera traseira) ou escolha da galeria. O texto será lido automaticamente.</p>
+      <p>Foto do <strong>post-it</strong> (nome + telefone). Depois já abre o cadastro.</p>
       <img id="ocr-preview" class="camera-preview" alt="Prévia" hidden />
       <p class="ocr-status" id="ocr-status" role="status"></p>
-      <div class="ocr-preview-box" id="ocr-raw" hidden></div>
       <div class="btn-row">
         <button type="button" class="btn btn-primary btn-lg" id="ocr-camera">Abrir câmera</button>
         <button type="button" class="btn btn-secondary btn-lg" id="ocr-gallery">Galeria</button>
       </div>
       <input type="file" id="ocr-file-cam" accept="image/*" capture="environment" hidden />
       <input type="file" id="ocr-file-gal" accept="image/*" hidden />
-      <div id="ocr-form" hidden></div>
     `;
     body.appendChild(wrap);
 
     const status = $('#ocr-status', wrap);
     const preview = $('#ocr-preview', wrap);
-    const rawBox = $('#ocr-raw', wrap);
-    const formHost = $('#ocr-form', wrap);
     const camIn = $('#ocr-file-cam', wrap);
     const galIn = $('#ocr-file-gal', wrap);
 
@@ -1057,30 +1053,33 @@ function openPhotoFlow() {
 
     async function handleFile(file) {
       if (!file) return;
-      formHost.hidden = true;
-      formHost.innerHTML = '';
       preview.hidden = false;
       preview.src = trackUrl(URL.createObjectURL(file));
-      status.textContent = 'Processando imagem…';
-      rawBox.hidden = true;
+      status.textContent = 'Lendo post-it…';
 
+      let parsed = { name: '', phoneFormatted: '', phoneDigits: '', rawText: '' };
       try {
-        const parsed = await recognizeLabel(file, (msg) => {
+        parsed = await recognizeLabel(file, (msg) => {
           status.textContent = msg;
         });
-        rawBox.hidden = false;
-        rawBox.textContent = parsed.rawText || '(sem texto detectado)';
-        status.textContent = 'Revise os dados e confirme.';
-        showOcrConfirm(formHost, parsed, file);
       } catch (err) {
         console.error(err);
-        status.textContent = 'Falha no OCR. Preencha manualmente.';
-        showOcrConfirm(
-          formHost,
-          { name: '', phoneFormatted: '', phoneDigits: '', rawText: '' },
-          file
-        );
+        status.textContent = 'Não leu bem — preencha na mão.';
       }
+
+      // Sem tela de revisão: vai direto ao cadastro
+      const shelf = 1;
+      const free = firstFreeSlot(boxes, shelf) || 1;
+      openRegisterForm({
+        replace: true,
+        name: parsed.name || '',
+        phone: parsed.phoneFormatted || formatPhoneBR(parsed.phoneDigits || ''),
+        shelf,
+        slot: free,
+        letter: letterOfSlot(free),
+        viaPhoto: true,
+        photoBlobs: file ? [file] : [],
+      });
     }
 
     camIn.addEventListener('change', () => {
