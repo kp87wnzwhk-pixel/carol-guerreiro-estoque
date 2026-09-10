@@ -700,11 +700,63 @@ function openRegisterForm(opts = {}) {
 }
 
 /* ---------- Box detail ---------- */
-function openBoxDetail(boxId) {
+function sortedOccupiedBoxes() {
+  return boxes
+    .filter((b) => b && b.id && !isTombstoned(b.id))
+    .slice()
+    .sort((a, b) => {
+      const sa = Number(a.shelf) || 0;
+      const sb = Number(b.shelf) || 0;
+      if (sa !== sb) return sa - sb;
+      return (Number(a.slot) || 0) - (Number(b.slot) || 0);
+    });
+}
+
+function openBoxDetail(boxId, opts) {
   const box = getBox(boxId);
   if (!box) return;
+  const open = opts && opts.replace ? replacePanel : openPanel;
 
-  openPanel('Caixa', (body) => {
+  open('Caixa', (body) => {
+    const list = sortedOccupiedBoxes();
+    const idx = list.findIndex((b) => b.id === box.id);
+
+    const nav = document.createElement('div');
+    nav.className = 'box-nav';
+    nav.setAttribute('role', 'navigation');
+    nav.setAttribute('aria-label', 'Clientes');
+
+    const prev = document.createElement('button');
+    prev.type = 'button';
+    prev.className = 'btn btn-outline box-nav-btn';
+    prev.setAttribute('aria-label', 'Cliente anterior');
+    prev.textContent = '◀';
+    prev.disabled = idx <= 0;
+    prev.addEventListener('click', () => {
+      if (idx > 0) openBoxDetail(list[idx - 1].id, { replace: true });
+    });
+
+    const counter = document.createElement('span');
+    counter.className = 'box-nav-counter';
+    counter.textContent = idx >= 0 ? idx + 1 + ' / ' + list.length : '—';
+
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'btn btn-outline box-nav-btn';
+    next.setAttribute('aria-label', 'Próximo cliente');
+    next.textContent = '▶';
+    next.disabled = idx < 0 || idx >= list.length - 1;
+    next.addEventListener('click', () => {
+      if (idx >= 0 && idx < list.length - 1) {
+        openBoxDetail(list[idx + 1].id, { replace: true });
+      }
+    });
+
+    nav.appendChild(prev);
+    nav.appendChild(counter);
+    nav.appendChild(next);
+    body.appendChild(nav);
+
     const card = document.createElement('div');
     card.className = 'detail-card' + (box.deliveryRequested ? ' delivery-alert' : '');
     card.innerHTML =
@@ -810,8 +862,7 @@ function openBoxDetail(boxId) {
         box.deliveryRequested = false;
         box.updatedAt = new Date().toISOString();
         persist();
-        closePanel();
-        openBoxDetail(box.id);
+        openBoxDetail(box.id, { replace: true });
       });
       row.appendChild(weigh);
     } else {
@@ -823,8 +874,7 @@ function openBoxDetail(boxId) {
         box.deliveryRequested = true;
         box.updatedAt = new Date().toISOString();
         persist();
-        closePanel();
-        openBoxDetail(box.id);
+        openBoxDetail(box.id, { replace: true });
       });
       row.appendChild(deliv);
     }
